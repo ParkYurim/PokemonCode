@@ -1,0 +1,500 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+
+namespace Pokemon
+{
+    internal class Poke02
+    {
+
+        public class PokemonID  //종족값 - IDStat
+        {
+            public string IDName { get; }
+            public int[] SixStats { get; }    // 0 : Health , 1 : atk , 2 : def, 3 : satk, 4 : sdef, 5 : spd
+            public List<string> EggGroup { get; }
+
+            public PokemonID()
+            {
+                IDName = "Null";
+                SixStats = new int[6] { 0, 0, 0, 0, 0, 0 };
+                EggGroup = new List<string>();
+                EggGroup.Add("UnKnown");
+            }
+            public PokemonID(string name, int[] arr, string? eggGroup1, string? eggGroup2)
+            {
+                IDName = name;
+                SixStats = new int[6];
+
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    SixStats[i] = arr[i];
+                }
+                EggGroup = new List<string>();
+                if (!string.IsNullOrEmpty(eggGroup1)) EggGroup.Add(eggGroup1);
+                if (!string.IsNullOrEmpty(eggGroup2)) EggGroup.Add(eggGroup2);
+            }
+        }
+
+        public class UnitStat   //개체값 - UnitStat
+        {
+            public int[] SixStats { get; set; }
+            public UnitStat()
+            {
+                SixStats = new int[6];
+                Random rand = new Random();
+                for (int i = 0; i < 6; i++)
+                {
+                    SixStats[i] = rand.Next(0, 32);
+                }
+            }
+            public UnitStat(int[] arr)
+            {
+                SixStats = new int[6];
+                SixStats = arr;
+
+            }
+        }
+
+        public class GiveStat   //노력치
+        {
+            public int[] SixStats { get; set; }
+            public GiveStat()
+            {
+                SixStats = new int[6] { 0, 0, 0, 0, 0, 0 };
+            }
+            public GiveStat(int[] sixStats)
+            {
+                SixStats = new int[6];
+                SixStats = sixStats;
+            }
+        }
+
+        //2진수로 스탯을 관리하기
+        [Flags]
+        enum Flag
+        {
+            None = 0,
+            Attack = 1 << 0, // 0000 0001 : attack
+            Defense = 1 << 1, // 0000 0010 : defense
+            ScAttack = 1 << 2, // 0000 0100 : special attack
+            ScDefense = 1 << 3,   // 0000 1000 : special defense
+            Speed = 1 << 4,   // 0001 0000 : speed
+            All = int.MaxValue
+        }
+
+        //포켓몬의 성격 :
+        public class Attitude
+        {
+            public string Name { get; set; }
+            public int Up { get; set; }   // 1이 atk
+            public int Down { get; set; }
+
+
+            string[,] attitudeNameArr = new string[5, 5] { { "노력", "외로움", "고집", "개구쟁이", "용감" }, { "대담", "온순", "장난꾸러기", "촐랑", "무사태평" }, { "조심", "의젓", "수줍음", "덜렁", "냉정" }, { "차분", "얌전", "신중", "변덕", "건방" }, { "겁쟁이", "성급", "명랑", "천진난만", "성실" } };
+            /// Attitude <summary>
+            ///  
+            ///  attack 인 경우에는 0을 입력받아서 byte 의 이동이 0이 되도록 함 >> attack 상승 표시
+            ///  낮아지는 스탯이 defense인 경우 1을 입력받아서 byte의 이동이 1이 되도록 함 >> defense의 하락 표시
+            ///  rand 0-4 사이의 값을 입력받고 (상승할 스탯) rand 0-4 사이의 값을 입력받는다(하락할 스탯)
+            ///  이름은 2차원 배열로 정리하여 출력, 상승 스탯과 하락 스탯은 한 쌍으로 전달.
+            ///  Attack
+            ///  Flag attack = (Flag)0000_0001; attack = "Attack"
+            ///  attack.statMove = 0; // Flag.Attack = 0b0000_0001;
+            ///  attack.
+            /// </summary>
+
+            public Attitude()
+            {
+                Random rand = new Random();
+                int up = rand.Next(0, 5);  //0이 atk
+                int down = rand.Next(0, 5);
+                Name = attitudeNameArr[up, down];
+                Up = up + 1;
+                Down = down + 1;
+
+                // byte upByte = 1<<up;
+                // byte downByte = 1<<down;
+
+                // //만약 Attitude가 전달하는 변수가 이진수라면 여기에서 잘릴 것.
+                // Flag upStat = (Flag)upByte; // upStat = "Attack" in flag
+                // UpStat = upStat.ToString(); // UpStat = "Attack" string
+                // Flag downStat = (Flag)downByte;
+                // DownStat = downStat.ToString();
+            }
+            public Attitude(int up, int down)   // 1 이 atk
+            {
+                Name = attitudeNameArr[up - 1, down - 1];
+                Up = up;
+                Down = down;
+            }
+        }
+
+        public class Unit
+        {
+            public string Name { get; set; }
+            public int Level{get; set;}
+            public string Sex { get; set; }
+            public int[] SixStats { get; set; }
+            public List<string> EggGroup { get; set; }
+            public string AttitudeName { get; set; }
+
+        }
+
+        public class StatManager //스탯의 계산 담당. 레벨업에 의한 스탯의 상승
+        {
+            public int[] SixStats { get; set; }
+
+            public PokemonID NowID { get; set; }
+            public UnitStat UnitStat { get; set; }
+            public GiveStat GiveStat { get; set; }
+            public Attitude AttitudeStat { get; set; }
+
+            //밖에서 접근할 필요 x 어차피 내부에서 만들어지고 소멸하기에 굳이 public으로 할 필요는 없을 듯?
+            int[] A { get; set; }
+            int[] B { get; set; }
+            int[] C { get; set; }
+            int UpStat { get; set; }
+            int DownStat { get; set; }
+
+            int maxLevel = 100;
+            int NowLevel{get; set;}
+
+            Dictionary<int, PokemonID> PokemonDic = new Dictionary<int, PokemonID>()
+            {
+                { 1, new PokemonID("이상해씨", new int[] { 45, 49, 49, 65, 65, 45 }, "Grass", "Poison") },  //연구소 1
+                { 4, new PokemonID("파이리", new int[] { 39, 52, 43, 60, 50, 65 }, "Fire", "None") },       //연구소 2
+                { 7, new PokemonID("꼬부기", new int[] { 44, 48, 65, 50, 64, 43 }, "Water", "None") },      //연구소 3
+                { 16, new PokemonID("구구", new int[] { 40, 45, 40, 35, 35, 56 }, "Normal", "Flying") },    //먹이 주는 새
+                { 19, new PokemonID("꼬렛", new int[] { 30, 56, 35, 25, 35, 72 }, "Normal", "None") },      //그린
+                { 25, new PokemonID("피카츄", new int[] { 35, 55, 40, 50, 50, 90 }, "Electric", "None") },  //레드
+                { 129, new PokemonID("잉어킹", new int[] { 20, 10, 55, 15, 20, 80 }, "Water", "None") },    //이수재
+                { 133, new PokemonID("이브이", new int[] { 55, 55, 50, 45, 50, 55 }, "Normal", "None") },   //이수재
+                { 152, new PokemonID("치코리타", new int[] { 45, 49, 65, 49, 65, 45 }, "Grass", "None") },  //실버
+                { 155, new PokemonID("브케인", new int[] { 39, 52, 43, 60, 50, 65 }, "Fire", "None") },     //금선
+                { 175, new PokemonID("토게피", new int[] { 35, 20, 65, 40, 65, 20 }, "Fairy", "None") },    //주인공
+                { 176, new PokemonID("토게틱", new int[] { 55, 40, 85, 80, 105, 40 }, "Fairy", "Flying") }, //주인공2
+                { 183, new PokemonID("마릴", new int[] { 70, 20, 50, 20, 50, 40 }, "Water", "Fairy") },     //동생(골드)
+                { 184, new PokemonID("마릴리", new int[] { 70, 20, 50, 20, 50, 40 }, "Water", "Fairy") },   //할머니
+                { 280, new PokemonID("랄토스", new int[] { 40, 30, 35, 35, 55, 30 }, "Psychic", "Fairy") },  //민진
+                { 298, new PokemonID("루리리", new int[] { 50, 20, 40, 20, 40, 20 }, "Water", "Fairy") },   //
+                { 374, new PokemonID("메탕", new int[] { 60, 75, 100, 55, 80, 50 }, "Steel", "Psychic") },  //성호
+                { 468, new PokemonID("토게키스", new int[] { 85, 50, 95, 120, 115, 80 }, "Fairy", "Flying") }  //할아버지
+            };
+
+            //포켓몬의 키 리스트를 생성, 임의의 키를 출력
+
+            public StatManager()    //랜덤으로 포켓몬 종류 정해서 이름과 스탯 가져오기
+            {
+                GetRandomPoke(null);
+                NowLevel = 0;
+                //Get Unit Stat : 유닛의 스탯 정의 및 초기화
+                UnitStat = new UnitStat();
+                GiveStat = new GiveStat();
+                AttitudeStat = new Attitude();
+
+                StatCalculator();
+            }
+            
+            public StatManager(int level)    //포켓몬의 레벨 설정하고 이름과 스탯 가져오기
+            {
+                GetRandomPoke(null);
+                NowLevel = level;
+                //Get Unit Stat : 유닛의 스탯 정의 및 초기화
+                UnitStat = new UnitStat();
+                GiveStat = new GiveStat();
+                AttitudeStat = new Attitude();
+
+                StatCalculator();
+            }
+
+            public void GetRandomPoke(int? IDnum)
+            {
+                //PokemonDic에 포켓몬이 없는 경우 확인.
+                if (PokemonDic == null || PokemonDic.Count == 0)
+                {
+                    Console.WriteLine("포켓몬 데이터가 없습니다.");
+                    return;
+                }
+
+                if (IDnum == null)
+                {
+                    // 랜덤 키를 가져오기 위한 준비
+                    Random rand = new Random();
+                    int randomIndex = rand.Next(PokemonDic.Count);
+
+                    // Dictionary에서 랜덤 키와 대응하는 포켓몬 가져오기 ElemontAt함수 처음 봄!
+                    int pokeKey = PokemonDic.Keys.ElementAt(randomIndex);
+                    NowID = PokemonDic[pokeKey];
+                    return;
+                }
+                else
+                {
+                    // IDnum이 null이 아닌 경우, 해당 IDnum을 이용해 포켓몬 가져오기
+                    if (PokemonDic.ContainsKey(IDnum.Value))
+                    {
+                        NowID = PokemonDic[IDnum.Value];
+                    }
+                    else
+                    {
+                        Console.WriteLine("해당 ID의 포켓몬이 존재하지 않습니다.");
+                    }
+                }
+            }
+            
+            /// <summery>
+                /// 
+                /// //PokemonDic의 key값을 가져와 리스트로 만들기
+                /// foreach (var optionID in PokemonDic)
+                ///{
+                ///    int key = optionID.Key;
+                ///   listKey.Add(key);
+                ///}
+                /// //랜덤으로 포켓몬 등장시키기
+                /// int num = -1;
+                /// Random rand = new Random();
+                /// num = rand.Next(0, PokemonDic.Count);
+                /// int PokeKey = listKey[num]; //pokekey가 pokedic의 키 값이 된다.
+                /// // NowID = new PokemonID();
+                /// NowID = PokemonDic[PokeKey]; //nowID에 PokeKey키를 가진 PokemonDic의 Value값 넣기
+                /// 
+            /// </summery>
+
+            public void StatCalculator()
+            {
+                for (int i = 0; i < NowID.SixStats.Length; i++)
+                {
+                    A[i] = NowID.SixStats[i];
+                }
+                for (int i = 0; i < UnitStat.SixStats.Length; i++)
+                {
+                    B[i] = UnitStat.SixStats[i];
+                }
+                for (int i = 0; i < GiveStat.SixStats.Length; i++)
+                {
+                    C[i] = Give.SixStats[i];
+                }
+
+                double stat1 = (double)((2 * A[0] + B[0] + C[0] / 4 + 100) * (SetLevel.Level / 100) + 10);
+                SixStats[0]=(int)stat1;
+
+                for (int i = 1; i < 6; i++)
+                {
+                    // a 종족값 b 개체값 c노력치 level 유닛의 레벨
+                    int a = A[i];
+                    int b = B[i];
+                    int c = C[i];
+
+                    double stat2;
+                    if (UpStat == DownStat)
+                    {
+                        stat2= (double)(((2 * a + b + c / 4) * (SetLevel.Level / 100) + 5));
+                    }
+                    else if (i == UpStat)
+                    {
+                        stat2 = (double)(((2 * a + b + c / 4) * (SetLevel.Level / 100) + 5) * 1.1);
+                    }
+                    else if (i == DownStat)
+                    {
+                        stat2 = (double)(((2 * a + b + c / 4) * (SetLevel.Level / 100) + 5) * 0.9);
+                    }
+                    else
+                    {
+                        stat2 = (double)((2 * a + b + c / 4) * (SetLevel.Level / 100) + 5);
+                    }
+
+                    SixStats[i] = (int)stat2;
+                }
+            }
+            
+            
+            //event 함수 이용해서 레벨업하면 StatCalculate 다시 하게 해야 함.
+
+            public void GivePoint(int i, int point)
+            {
+                if (GiveStat.SixStats[i] == 252)
+                {
+                    Console.WriteLine("노력치가 이미 최대입니다.");
+                    return;
+                }
+
+                GiveStat.SixStats[i] += point;
+                if (GiveStat.SixStats[i] > 252)
+                {
+                    GiveStat.SixStats[i] = 252;
+                }
+            }
+
+            public void LevelUpPoint()
+            {
+
+            }
+            // givepoint 일어나면 스탯 계산 다시 시작하기.
+            public void CheckStatInfo()
+            {
+                foreach (int num in NowID.SixStats)
+                {
+                    Console.WriteLine(num + " ");
+                }
+                Console.WriteLine();
+                Console.WriteLine();
+                foreach (int num in UnitStat.SixStats)
+                {
+                    Console.Write(num + " ");
+                }
+                Console.WriteLine();
+                Console.WriteLine();
+                foreach (int num in GiveStat.SixStats)
+                {
+                    Console.Write(num + " ");
+                }
+                Console.WriteLine();
+                Console.WriteLine();
+                Console.WriteLine("{0}, {1}, {2}", AttitudeStat.Name, AttitudeStat.Up, AttitudeStat.Down);
+            }
+
+        }
+
+        delegate void RankChangeEvent(int stat, int rank);
+        public class BattleStat
+        {
+            private int maxRank = 6;
+            public string Name { get; set; }
+            public int[] SixStats { get; set; }
+            public int[] SixRankChange { get; set; }
+            public int[] ApplyStats { get; set; }
+
+            private event RankChangeEvent OnRankChange;
+            public BattleStat(StatManager unit)   //초기 스탯 입력 Attack, calculateValue
+            {
+                Name = unit.Name;
+                SixStats = unit.SixStats;
+                OnRankChange += ApplyRankChange;
+            }
+            // 배틀 중 스탯 변화
+
+            public void GetRankChange(int statNum, int newRank)
+            {
+                int rank = newRank;
+                if(statNum==0)
+                {
+                    Console.WriteLine("아직까지는 에러. 나중에 힐 하는 스킬 추가하면 사용할 수도??");
+                }
+
+                if (rank > maxRank)
+                {
+                    rank = maxRank;
+                }
+                else if (rank < (-1 * maxRank))
+                {
+                    rank = (-1) * maxRank;
+                }
+                else
+                {
+                    SixRankChange[statNum] += rank;
+                    OnRankChange?.Invoke(statNum, rank);
+                }
+            }
+
+            public void ApplyRankChange(int statNum, int rank)
+            {
+                for(int i=1; i<6; i++)
+                {
+                    double stat;
+                    if (SixRankChange[i] > 0)
+                    {
+                        stat = (double)(SixStats[i] * (1 + SixRankChange[i] * 0.5));
+                    }
+                    else if (SixRankChange[i] < 0)
+                    {
+                        stat = (double)(SixStats[i] * (2 / (2 - SixRankChange[i])));
+                    }
+                    else
+                    {
+                        stat = SixStats[i];
+                    }
+                    ApplyStats[i] = (int)stat;
+                }
+            }
+        
+        }
+
+
+        public delegate void BattleEvent();
+
+
+
+        public delegate void LevelUpEvent();
+
+        public delegate void GainExpEvent(int exp);
+        
+        public class EventHandler
+        {}
+        public class LevelSetUp
+        {
+            public int Level { get; set; }
+            public int ExpPoint { get; set; }
+            public int NeedPoint { get; set; }
+
+            // 레벨업 이벤트 델리게이트
+            public event LevelUpEvent OnLevelUp;
+            public event GainExpEvent OnGetExp;
+
+            public LevelSetUp()
+            {
+                Random rand = new Random();
+                Level = rand.Next(1, 101);
+                ExpPoint = 0;
+                NeedPointCalc();
+                OnLevelUp += NeedPointCalc;
+            }
+            public LevelSetUp(int level)
+            {
+                Random rand = new Random();
+                Level = rand.Next(level-5, level+6);
+                ExpPoint = 0;
+                NeedPointCalc();
+            }
+            public void GainExp(int exp)
+            {
+                ExpPoint += exp;
+                Console.WriteLine($"경험치를 {exp}만큼 획득했다!");
+                OnGetExp?.Invoke(exp);
+                CheckLevelUp();
+            }
+
+            private void CheckLevelUp()
+            {
+                while (ExpPoint >= NeedPoint)
+                {
+                    ExpPoint -= NeedPoint;
+                    Level++;
+                    Console.WriteLine($"레벨이 {Level}로 상승했습니다!");
+                    NeedPointCalc();
+                    OnLevelUp?.Invoke(); // 레벨업 이벤트 호출
+                }
+            }
+
+            private void NeedPointCalc()
+            {
+                NeedPoint = (int)(Math.Pow(Level + 1, 3) - Math.Pow(Level, 3));
+            }
+
+        }
+
+        
+
+    }
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+
+        }
+    }
+    
+
+}
